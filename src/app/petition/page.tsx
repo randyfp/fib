@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form';
 import { Box, Button, TextField, Typography } from '@mui/material';
 import { useSnackbar } from 'notistack';
 import { useState } from 'react';
+import Image from 'next/image';
 
 type FormData = {
   petitionNumber: string;
@@ -50,7 +51,7 @@ export default function PetitionFormPage() {
     const imageSection =
       imageUrls && imageUrls.filter(Boolean).length > 0
         ? `\n\nПриложенные изображения:\n${imageUrls
-          .map((url, i) => `• ${url}`)
+          .map((url) => `• ${url}`)
           .join('\n')}`
         : '';
 
@@ -173,10 +174,12 @@ export default function PetitionFormPage() {
               />
               {imagePreviews[i] && (
                 <Box mt={1}>
-                  <img
+
+                  <Image
                     src={imagePreviews[i]!}
                     alt={`Превью ${i + 1}`}
                     style={{ width: '100%', maxWidth: '300px', borderRadius: 8 }}
+                    unoptimized // обязательно, т.к. Imgur — внешний источник
                   />
                 </Box>
               )}

@@ -1,10 +1,24 @@
 'use client';
 
 import { useState } from 'react';
-import { Box, Button, Typography } from '@mui/material';
+import { Box, Typography } from '@mui/material';
+import Image from 'next/image';
+
+type ImgurImage = {
+  id: string;
+  link: string;
+  title?: string;
+  description?: string;
+  width?: number;
+  height?: number;
+  type?: string;
+  size?: number;
+  animated?: boolean;
+  // можно добавить другие поля, если нужно
+};
 
 export default function TestUploadPage() {
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<ImgurImage | null>(null);
   const [error, setError] = useState<string>('');
   const [loading, setLoading] = useState(false);
 
@@ -24,8 +38,8 @@ export default function TestUploadPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.data?.error || 'Ошибка загрузки');
       setResult(data.data);
-    } catch (err: any) {
-      setError(err.message);
+    }  catch (err) {
+      setError(err instanceof Error ? err.message : 'Неизвестная ошибка');
     } finally {
       setLoading(false);
     }
@@ -57,7 +71,14 @@ export default function TestUploadPage() {
         <Box mt={2}>
           <Typography>Ссылка: <a href={result.link} target="_blank" rel="noreferrer">{result.link}</a></Typography>
           <Box mt={1}>
-            <img src={result.link} alt="Uploaded" style={{ maxWidth: '100%' }} />
+            <Image
+              src={result.link}
+              alt="Uploaded"
+              width={500}
+              height={300}
+              style={{ maxWidth: '100%', height: 'auto' }}
+              unoptimized // обязательно, т.к. Imgur — внешний источник
+            />
           </Box>
         </Box>
       )}
