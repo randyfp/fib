@@ -1,10 +1,11 @@
 'use client';
 
-import { useForm } from 'react-hook-form';
+import { Controller, useForm } from 'react-hook-form';
 import { Box, Button, TextField, Typography } from '@mui/material';
 import { useSnackbar } from 'notistack';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Image from 'next/image';
+import { ImageUpload } from '@/components/ImageUpload';
 
 type FormData = {
   petitionNumber: string;
@@ -13,29 +14,29 @@ type FormData = {
   position: string;
   employeeFirstName: string;
   employeeLastName: string;
+  leaderFullName: string;
 };
 
 export default function PetitionFormPage() {
   const {
     register,
     handleSubmit,
+    setValue,
+    control,
     reset,
     formState: { errors },
   } = useForm<FormData>({ mode: 'onBlur' });
 
   const { enqueueSnackbar } = useSnackbar();
-  const [images, setImages] = useState<(File | null)[]>([null, null, null]);
-  const [imagePreviews, setImagePreviews] = useState<(string | null)[]>([null, null, null]);
+  const [imageUrls, setImageUrls] = useState<(string | null)[]>([null, null, null]);
   const [imageError, setImageError] = useState(false);
   const [generatedText, setGeneratedText] = useState('');
 
-  const handleImageChange = (index: number, file: File | null) => {
-    const newImages = [...images];
-    const newPreviews = [...imagePreviews];
-    newImages[index] = file;
-    newPreviews[index] = file ? URL.createObjectURL(file) : null;
-    setImages(newImages);
-    setImagePreviews(newPreviews);
+
+  const handleImageUpload = (index: number, url: string) => {
+    const newUrls = [...imageUrls];
+    newUrls[index] = url;
+    setImageUrls(newUrls);
   };
 
   const generatePetitionText = (data: FormData, imageUrls?: string[]) => {
@@ -46,13 +47,12 @@ export default function PetitionFormPage() {
       position,
       employeeFirstName,
       employeeLastName,
+      leaderFullName,
     } = data;
 
     const imageSection =
       imageUrls && imageUrls.filter(Boolean).length > 0
-        ? `\n\nПриложенные изображения:\n${imageUrls
-          .map((url) => `• ${url}`)
-          .join('\n')}`
+        ? `\n\nПриложенные изображения:\n${imageUrls.map((url) => `• ${url}`).join('\n')}`
         : '';
 
     return `Ходатайство №${petitionNumber}
@@ -64,7 +64,7 @@ export default function PetitionFormPage() {
   };
 
   const onSubmit = async (data: FormData) => {
-    if (images.some((file) => file === null)) {
+    if (imageUrls.some((url) => !url)) {
       setImageError(true);
       return;
     } else {
@@ -75,9 +75,9 @@ export default function PetitionFormPage() {
     Object.entries(data).forEach(([key, value]) => {
       formData.append(key, value as string);
     });
-    images.forEach((file, i) => {
-      if (file) {
-        formData.append(`image${i}`, file);
+    imageUrls.forEach((url, i) => {
+      if (url) {
+        formData.append(`imageUrl${i}`, url);
       }
     });
 
@@ -96,8 +96,7 @@ export default function PetitionFormPage() {
         setGeneratedText(text);
 
         reset();
-        setImages([null, null, null]);
-        setImagePreviews([null, null, null]);
+        setImageUrls([null, null, null]);
       } else {
         enqueueSnackbar('Ошибка при отправке формы', { variant: 'error' });
       }
@@ -107,26 +106,41 @@ export default function PetitionFormPage() {
     }
   };
 
+  const handleGenerate = handleSubmit((data) => {
+    localStorage.setItem('petition_firstName', data.firstName);
+    localStorage.setItem('petition_lastName', data.lastName);
+    setGeneratedText(generatePetitionText(data, imageUrls as string[]));
+  });
+
   return (
     <Box maxWidth="600px" mx="auto" mt={4}>
       <Typography variant="h4" gutterBottom>
         Форма ходатайства
       </Typography>
 
-      <form onSubmit={handleSubmit(onSubmit)}>
-        <TextField
-          fullWidth
-          label="Номер ходатайства"
-          {...register('petitionNumber', { required: 'Обязательно' })}
-          error={!!errors.petitionNumber}
-          helperText={errors.petitionNumber?.message}
-          margin="normal"
-        />
+      <form >
+        <Controller
+          name="leaderFullName"
+          control={control}
+          rules={{ required: 'Обязательно' }}
+          render={({ field }) => (
+            <TextField
+              {...field}
+              fullWidth
+              placeholder="Aidew moor"
+              error={!!errors.leaderFullName}
+              helperText={errors.leaderFullName?.message}
+              margin="normal"
+            />
+          )}
+       />
+
         <TextField
           fullWidth
           label="Имя заявителя"
           {...register('firstName', { required: 'Обязательно' })}
           error={!!errors.firstName}
+          defaultValue={typeof window !== 'undefined' ? localStorage.getItem('petition_firstName') ?? '' : ''}
           helperText={errors.firstName?.message}
           margin="normal"
         />
@@ -164,22 +178,19 @@ export default function PetitionFormPage() {
         />
 
         <Box mt={2}>
-          <Typography>Загрузите 3 изображения:</Typography>
-          {images.map((_, i) => (
+          <Typography>Загрузите 3 изображения (с Imgur):</Typography>
+          {[0, 1, 2].map((i) => (
             <Box key={i} mt={2}>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={(e) => handleImageChange(i, e.target.files?.[0] || null)}
-              />
-              {imagePreviews[i] && (
+              <ImageUpload onUpload={(url) => handleImageUpload(i, url)} />
+              {imageUrls[i] && (
                 <Box mt={1}>
-
                   <Image
-                    src={imagePreviews[i]!}
+                    src={imageUrls[i]!}
                     alt={`Превью ${i + 1}`}
                     style={{ width: '100%', maxWidth: '300px', borderRadius: 8 }}
-                    unoptimized // обязательно, т.к. Imgur — внешний источник
+                    unoptimized
+                    width={500}
+                    height={300}
                   />
                 </Box>
               )}
@@ -196,13 +207,7 @@ export default function PetitionFormPage() {
           <Button type="submit" variant="contained" color="primary">
             Отправить
           </Button>
-          <Button
-            variant="outlined"
-            sx={{ ml: 2 }}
-            onClick={handleSubmit((data) =>
-              setGeneratedText(generatePetitionText(data, []))
-            )}
-          >
+          <Button variant="outlined" sx={{ ml: 2 }} onClick={handleGenerate}>
             Сформировать текст
           </Button>
         </Box>
