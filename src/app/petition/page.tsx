@@ -3,82 +3,67 @@
 import { Controller, useForm } from 'react-hook-form';
 import { Box, Button, TextField, Typography } from '@mui/material';
 import { useSnackbar } from 'notistack';
-import { useEffect, useState } from 'react';
-import Image from 'next/image';
-import { ImageUpload } from '@/components/ImageUpload';
+import { useState } from 'react';
+import { CategoryBlock, ImageCategory } from './PetitionImageCategories';
 
 type FormData = {
-  petitionNumber: string;
-  firstName: string;
-  lastName: string;
-  position: string;
-  employeeFirstName: string;
-  employeeLastName: string;
-  leaderFullName: string;
+  petitionNumber: number;
+  jobTitle: string;
+  employeeName: string;
+  leaderName: string;
 };
 
 export default function PetitionFormPage() {
   const {
-    register,
     handleSubmit,
-    setValue,
     control,
     reset,
-    formState: { errors },
   } = useForm<FormData>({ mode: 'onBlur' });
 
   const { enqueueSnackbar } = useSnackbar();
-  const [imageUrls, setImageUrls] = useState<(string | null)[]>([null, null, null]);
-  const [imageError, setImageError] = useState(false);
+  const [categories, setCategories] = useState<ImageCategory[]>([]);
   const [generatedText, setGeneratedText] = useState('');
 
+  const generatePetitionText = (data: FormData, categories: ImageCategory[]) => {
+    const { petitionNumber, jobTitle, employeeName, leaderName } = data;
+    const today = new Date().toLocaleDateString('ru-RU');
 
-  const handleImageUpload = (index: number, url: string) => {
-    const newUrls = [...imageUrls];
-    newUrls[index] = url;
-    setImageUrls(newUrls);
-  };
+    const imagesSection = categories
+      .map(
+        (cat) =>
+          cat.images.length > 0
+            ? `${cat.description} ${employeeName}\n` + cat.images.map((url) => `• ${url}`).join('\n')
+            : ''
+      )
+      .filter(Boolean)
+      .join('\n');
 
-  const generatePetitionText = (data: FormData, imageUrls?: string[]) => {
-    const {
-      petitionNumber,
-      firstName,
-      lastName,
-      position,
-      employeeFirstName,
-      employeeLastName,
-      leaderFullName,
-    } = data;
+    return `[RIGHT]В Окружной/Верховный суд Штата Сан-Андреас
+От гражданина США ${leaderName}[/RIGHT]
 
-    const imageSection =
-      imageUrls && imageUrls.filter(Boolean).length > 0
-        ? `\n\nПриложенные изображения:\n${imageUrls.map((url) => `• ${url}`).join('\n')}`
-        : '';
 
-    return `Ходатайство №${petitionNumber}
+[CENTER]Ходатайство № ${petitionNumber} [/CENTER]
 
-Я, ${lastName} ${firstName}, занимающий(ая) должность ${position}, настоящим ходатайствую о предоставлении привилегий (или поощрения) сотруднику ${employeeLastName} ${employeeFirstName} за отличные показатели в работе и вклад в развитие компании.${imageSection}
+Я, ${leaderName}, занимающий должность ${jobTitle} направляю суду и сторонам следующие материалы:
 
-Дата: _____________
-Подпись: _____________`;
+${imagesSection || '[Описание документа] [Имя Фамилия сотрудника]  - *ссылка*;'}
+
+[RIGHT]
+Дата:${today}
+Подпись: ________[/RIGHT]`;
   };
 
   const onSubmit = async (data: FormData) => {
-    if (imageUrls.some((url) => !url)) {
-      setImageError(true);
-      return;
-    } else {
-      setImageError(false);
-    }
-
     const formData = new FormData();
     Object.entries(data).forEach(([key, value]) => {
       formData.append(key, value as string);
     });
-    imageUrls.forEach((url, i) => {
-      if (url) {
-        formData.append(`imageUrl${i}`, url);
-      }
+
+    categories.forEach((cat, i) => {
+      formData.append(`category${i}_description`, cat.description);
+      cat.images.forEach((url, j) => {
+        formData.append(`category${i}_image${j}`, url);
+      });
     });
 
     try {
@@ -90,13 +75,9 @@ export default function PetitionFormPage() {
       const result = await res.json();
       if (result.success) {
         enqueueSnackbar('Форма успешно отправлена!', { variant: 'success' });
-
-        const imageUrls: string[] = result.data.imageUrls;
-        const text = generatePetitionText(data, imageUrls);
-        setGeneratedText(text);
-
+        setGeneratedText(generatePetitionText(data, categories));
         reset();
-        setImageUrls([null, null, null]);
+        setCategories([]);
       } else {
         enqueueSnackbar('Ошибка при отправке формы', { variant: 'error' });
       }
@@ -107,9 +88,9 @@ export default function PetitionFormPage() {
   };
 
   const handleGenerate = handleSubmit((data) => {
-    localStorage.setItem('petition_firstName', data.firstName);
-    localStorage.setItem('petition_lastName', data.lastName);
-    setGeneratedText(generatePetitionText(data, imageUrls as string[]));
+    localStorage.setItem('petition_leaderName', data.leaderName);
+    localStorage.setItem('petition_jobTitle', data.jobTitle);
+    setGeneratedText(generatePetitionText(data, categories));
   });
 
   return (
@@ -118,96 +99,95 @@ export default function PetitionFormPage() {
         Форма ходатайства
       </Typography>
 
-      <form >
+      <form onSubmit={handleSubmit(onSubmit)}>
+        <Typography variant="body1">Имя и фамилия руководства</Typography>
         <Controller
-          name="leaderFullName"
+          name="leaderName"
           control={control}
-          rules={{ required: 'Обязательно' }}
           render={({ field }) => (
             <TextField
+              sx={{ mt: 0.5 }}
               {...field}
               fullWidth
               placeholder="Aidew moor"
-              error={!!errors.leaderFullName}
-              helperText={errors.leaderFullName?.message}
-              margin="normal"
+              defaultValue={typeof window !== 'undefined' ? localStorage.getItem('petition_leaderName') ?? '' : ''}
             />
           )}
-       />
-
-        <TextField
-          fullWidth
-          label="Имя заявителя"
-          {...register('firstName', { required: 'Обязательно' })}
-          error={!!errors.firstName}
-          defaultValue={typeof window !== 'undefined' ? localStorage.getItem('petition_firstName') ?? '' : ''}
-          helperText={errors.firstName?.message}
-          margin="normal"
-        />
-        <TextField
-          fullWidth
-          label="Фамилия заявителя"
-          {...register('lastName', { required: 'Обязательно' })}
-          error={!!errors.lastName}
-          helperText={errors.lastName?.message}
-          margin="normal"
-        />
-        <TextField
-          fullWidth
-          label="Должность заявителя"
-          {...register('position', { required: 'Обязательно' })}
-          error={!!errors.position}
-          helperText={errors.position?.message}
-          margin="normal"
-        />
-        <TextField
-          fullWidth
-          label="Имя сотрудника"
-          {...register('employeeFirstName', { required: 'Обязательно' })}
-          error={!!errors.employeeFirstName}
-          helperText={errors.employeeFirstName?.message}
-          margin="normal"
-        />
-        <TextField
-          fullWidth
-          label="Фамилия сотрудника"
-          {...register('employeeLastName', { required: 'Обязательно' })}
-          error={!!errors.employeeLastName}
-          helperText={errors.employeeLastName?.message}
-          margin="normal"
         />
 
-        <Box mt={2}>
-          <Typography>Загрузите 3 изображения (с Imgur):</Typography>
-          {[0, 1, 2].map((i) => (
-            <Box key={i} mt={2}>
-              <ImageUpload onUpload={(url) => handleImageUpload(i, url)} />
-              {imageUrls[i] && (
-                <Box mt={1}>
-                  <Image
-                    src={imageUrls[i]!}
-                    alt={`Превью ${i + 1}`}
-                    style={{ width: '100%', maxWidth: '300px', borderRadius: 8 }}
-                    unoptimized
-                    width={500}
-                    height={300}
-                  />
-                </Box>
-              )}
-            </Box>
-          ))}
-          {imageError && (
-            <Typography color="error" variant="body2" mt={1}>
-              Загрузите все 3 изображения
-            </Typography>
+        <Typography variant="body1">Должность</Typography>
+        <Controller
+          name="jobTitle"
+          control={control}
+          render={({ field }) => (
+            <TextField
+              sx={{ mt: 0.5 }}
+              {...field}
+              fullWidth
+              placeholder="Заместитель главы отдела FNA"
+              defaultValue={typeof window !== 'undefined' ? localStorage.getItem('petition_jobTitle') ?? '' : ''}
+            />
           )}
+        />
+        <Typography variant="body1">Номер ходатайства</Typography>
+        <Controller
+          name="petitionNumber"
+          control={control}
+          render={({ field }) => (
+            <TextField
+              sx={{ mt: 0.5 }}
+              {...field}
+              fullWidth
+              type="number"
+            />
+          )}
+        />
+        <Typography variant="body1">Имя Фамилия сотрудника</Typography>
+        <Controller
+          name="employeeName"
+          control={control}
+          render={({ field }) => (
+            <TextField
+              sx={{ mt: 0.5 }}
+              {...field}
+              fullWidth
+              placeholder="Randy Walkers"
+            />
+          )}
+        />
+
+        <Box mt={3}>
+          <Typography variant="h6">Изображения:</Typography>
+          {categories.map((cat, i) => (
+            <CategoryBlock
+              key={i}
+              index={i}
+              category={cat}
+              onUpdate={(updated) => {
+                const newCats = [...categories];
+                newCats[i] = updated;
+                setCategories(newCats);
+              }}
+              onRemove={() => {
+                const newCats = [...categories];
+                newCats.splice(i, 1);
+                setCategories(newCats);
+              }}
+            />
+          ))}
+          <Button
+            variant="outlined"
+            sx={{ mt: 2 }}
+            onClick={() =>
+              setCategories([...categories, { description: '', images: [] }])
+            }
+          >
+            + Добавить категорию
+          </Button>
         </Box>
 
         <Box mt={3}>
-          <Button type="submit" variant="contained" color="primary">
-            Отправить
-          </Button>
-          <Button variant="outlined" sx={{ ml: 2 }} onClick={handleGenerate}>
+          <Button variant="outlined" onClick={handleGenerate}>
             Сформировать текст
           </Button>
         </Box>
@@ -222,7 +202,9 @@ export default function PetitionFormPage() {
             value={generatedText}
             minRows={8}
             sx={{ mt: 1 }}
-            InputProps={{ readOnly: true }}
+            slotProps={{
+              input: { readOnly: true }
+            }}
           />
           <Button
             variant="contained"

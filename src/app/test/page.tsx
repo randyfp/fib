@@ -38,7 +38,7 @@ export default function TestUploadPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.data?.error || 'Ошибка загрузки');
       setResult(data.data);
-    }  catch (err) {
+    } catch (err) {
       setError(err instanceof Error ? err.message : 'Неизвестная ошибка');
     } finally {
       setLoading(false);
