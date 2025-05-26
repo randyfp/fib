@@ -1,33 +1,29 @@
 'use client';
 
-import { Controller, useForm } from 'react-hook-form';
-import { Box, Button, TextField, Typography } from '@mui/material';
-import { useSnackbar } from 'notistack';
 import { useState } from 'react';
+import { Button, Input, Typography, Row, Col, message, Form, Space, Upload, Select, Image } from 'antd';
+import { InboxOutlined } from '@ant-design/icons';
+import type { UploadFile } from 'antd/es/upload/interface';
 import { CategoryBlock, ImageCategory } from './PetitionImageCategories';
+import styles from './petitionPage.module.css';
 
-type FormData = {
+interface FormData {
   petitionNumber: number;
   jobTitle: string;
   employeeName: string;
   leaderName: string;
-};
+}
 
 export default function PetitionFormPage() {
-  const {
-    handleSubmit,
-    control,
-    reset,
-  } = useForm<FormData>({ mode: 'onBlur' });
-
-  const { enqueueSnackbar } = useSnackbar();
+  const [form] = Form.useForm<FormData>();
   const [categories, setCategories] = useState<ImageCategory[]>([]);
   const [generatedText, setGeneratedText] = useState('');
+  const [uploadedFiles, setUploadedFiles] = useState<UploadFile[]>([]);
+  const [imageCategories, setImageCategories] = useState<Record<string, string>>({});
 
-  const generatePetitionText = (data: FormData, categories: ImageCategory[]) => {
+  function generatePetitionText(data: FormData, categories: ImageCategory[]) {
     const { petitionNumber, jobTitle, employeeName, leaderName } = data;
     const today = new Date().toLocaleDateString('ru-RU');
-
     const imagesSection = categories
       .map(
         (cat) =>
@@ -37,187 +33,166 @@ export default function PetitionFormPage() {
       )
       .filter(Boolean)
       .join('\n');
+    return `[RIGHT]В Окружной/Верховный суд Штата Сан-Андреас\nОт гражданина США ${leaderName}[/RIGHT]\n\n\n[CENTER]Ходатайство № ${petitionNumber} [/CENTER]\n\nЯ, ${leaderName}, занимающий должность ${jobTitle} направляю суду и сторонам следующие материалы:\n\n${imagesSection || '[Описание документа] [Имя Фамилия сотрудника]  - *ссылка*;'}\n\n[RIGHT]\nДата:${today}\nПодпись: ________[/RIGHT]`;
+  }
 
-    return `[RIGHT]В Окружной/Верховный суд Штата Сан-Андреас
-От гражданина США ${leaderName}[/RIGHT]
-
-
-[CENTER]Ходатайство № ${petitionNumber} [/CENTER]
-
-Я, ${leaderName}, занимающий должность ${jobTitle} направляю суду и сторонам следующие материалы:
-
-${imagesSection || '[Описание документа] [Имя Фамилия сотрудника]  - *ссылка*;'}
-
-[RIGHT]
-Дата:${today}
-Подпись: ________[/RIGHT]`;
-  };
-
-  const onSubmit = async (data: FormData) => {
+  async function onFinish(data: FormData) {
     const formData = new FormData();
     Object.entries(data).forEach(([key, value]) => {
       formData.append(key, value as string);
     });
-
     categories.forEach((cat, i) => {
       formData.append(`category${i}_description`, cat.description);
       cat.images.forEach((url, j) => {
         formData.append(`category${i}_image${j}`, url);
       });
     });
-
     try {
       const res = await fetch('/api/petition', {
         method: 'POST',
         body: formData,
       });
-
       const result = await res.json();
       if (result.success) {
-        enqueueSnackbar('Форма успешно отправлена!', { variant: 'success' });
+        message.success('Форма успешно отправлена!');
         setGeneratedText(generatePetitionText(data, categories));
-        reset();
+        form.resetFields();
         setCategories([]);
       } else {
-        enqueueSnackbar('Ошибка при отправке формы', { variant: 'error' });
+        message.error('Ошибка при отправке формы');
       }
     } catch (error) {
       console.error(error);
-      enqueueSnackbar('Ошибка подключения к серверу', { variant: 'error' });
+      message.error('Ошибка подключения к серверу');
     }
-  };
+  }
 
-  const handleGenerate = handleSubmit((data) => {
+  function handleGenerate() {
+    const data = form.getFieldsValue();
     localStorage.setItem('petition_leaderName', data.leaderName);
     localStorage.setItem('petition_jobTitle', data.jobTitle);
     setGeneratedText(generatePetitionText(data, categories));
-  });
+  }
+
+  function handleUploadChange(info: any) {
+    setUploadedFiles(info.fileList);
+  }
+
+  function handleCategoryChange(fileUid: string, value: string) {
+    setImageCategories((prev) => ({ ...prev, [fileUid]: value }));
+  }
 
   return (
-    <Box maxWidth="600px" mx="auto" mt={4}>
-      <Typography variant="h4" gutterBottom>
-        Форма ходатайства
-      </Typography>
-
-      <form onSubmit={handleSubmit(onSubmit)}>
-        <Typography variant="body1">Имя и фамилия руководства</Typography>
-        <Controller
-          name="leaderName"
-          control={control}
-          render={({ field }) => (
-            <TextField
-              sx={{ mt: 0.5 }}
-              {...field}
-              fullWidth
-              placeholder="Aidew moor"
-              defaultValue={typeof window !== 'undefined' ? localStorage.getItem('petition_leaderName') ?? '' : ''}
-            />
-          )}
-        />
-
-        <Typography variant="body1">Должность</Typography>
-        <Controller
-          name="jobTitle"
-          control={control}
-          render={({ field }) => (
-            <TextField
-              sx={{ mt: 0.5 }}
-              {...field}
-              fullWidth
-              placeholder="Заместитель главы отдела FNA"
-              defaultValue={typeof window !== 'undefined' ? localStorage.getItem('petition_jobTitle') ?? '' : ''}
-            />
-          )}
-        />
-        <Typography variant="body1">Номер ходатайства</Typography>
-        <Controller
-          name="petitionNumber"
-          control={control}
-          render={({ field }) => (
-            <TextField
-              sx={{ mt: 0.5 }}
-              {...field}
-              fullWidth
-              type="number"
-            />
-          )}
-        />
-        <Typography variant="body1">Имя Фамилия сотрудника</Typography>
-        <Controller
-          name="employeeName"
-          control={control}
-          render={({ field }) => (
-            <TextField
-              sx={{ mt: 0.5 }}
-              {...field}
-              fullWidth
-              placeholder="Randy Walkers"
-            />
-          )}
-        />
-
-        <Box mt={3}>
-          <Typography variant="h6">Изображения:</Typography>
-          {categories.map((cat, i) => (
-            <CategoryBlock
-              key={i}
-              index={i}
-              category={cat}
-              onUpdate={(updated) => {
-                const newCats = [...categories];
-                newCats[i] = updated;
-                setCategories(newCats);
-              }}
-              onRemove={() => {
-                const newCats = [...categories];
-                newCats.splice(i, 1);
-                setCategories(newCats);
-              }}
-            />
-          ))}
-          <Button
-            variant="outlined"
-            sx={{ mt: 2 }}
-            onClick={() =>
-              setCategories([...categories, { description: '', images: [] }])
-            }
+    <Row justify="center" className={styles.centerRow}>
+      <Col span={24}>
+        <Typography.Title level={2} className={styles.title}>
+          Сформировать ходатайство
+        </Typography.Title>
+        <Form
+          form={form}
+          layout="horizontal"
+          labelCol={{ flex: '200px' }}
+          wrapperCol={{ flex: 'auto' }}
+          onFinish={onFinish}
+          initialValues={{
+            leaderName: typeof window !== 'undefined' ? localStorage.getItem('petition_leaderName') ?? '' : '',
+            jobTitle: typeof window !== 'undefined' ? localStorage.getItem('petition_jobTitle') ?? '' : '',
+          }}
+        >
+          <Form.Item
+            label="Имя и фамилия руководства"
+            name="leaderName"
           >
-            + Добавить категорию
-          </Button>
-        </Box>
-
-        <Box mt={3}>
-          <Button variant="outlined" onClick={handleGenerate}>
-            Сформировать текст
-          </Button>
-        </Box>
-      </form>
-
-      {generatedText && (
-        <Box mt={3}>
-          <Typography variant="h6">Сформированный текст:</Typography>
-          <TextField
-            fullWidth
-            multiline
-            value={generatedText}
-            minRows={8}
-            sx={{ mt: 1 }}
-            slotProps={{
-              input: { readOnly: true }
-            }}
-          />
-          <Button
-            variant="contained"
-            onClick={() => {
-              navigator.clipboard.writeText(generatedText);
-              enqueueSnackbar('Текст скопирован', { variant: 'info' });
-            }}
-            sx={{ mt: 1 }}
+            <Input placeholder="Aidew moor" />
+          </Form.Item>
+          <Form.Item
+            label="Должность"
+            name="jobTitle"
           >
-            Скопировать
-          </Button>
-        </Box>
-      )}
-    </Box>
+            <Input placeholder="Заместитель главы отдела FNA" />
+          </Form.Item>
+          <Form.Item
+            label="Номер ходатайства"
+            name="petitionNumber"
+          >
+            <Input type="number" />
+          </Form.Item>
+          <Form.Item
+            label="Имя Фамилия сотрудника"
+            name="employeeName"
+          >
+            <Input placeholder="Randy Walkers" />
+          </Form.Item>
+          <Form.Item label="Загрузить изображения">
+            <Upload.Dragger
+              multiple
+              onChange={handleUploadChange}
+              beforeUpload={() => false}
+              accept="image/*"
+              showUploadList={false} 
+            >
+              <p className="ant-upload-drag-icon">
+                <InboxOutlined />
+              </p>
+              <p className="ant-upload-text">Перетащите или кликните для загрузки</p>
+            </Upload.Dragger>
+          </Form.Item>
+          {uploadedFiles.length > 0 && (
+            <div className={styles.uploadedFilesBlock} style={{ marginTop: 16 }}>
+              {uploadedFiles.map((file) => (
+                <div key={file.uid} className={styles.uploadedFileItem}>
+                  <Image
+                    src={`/image/${file.name}`}
+                    alt={file.name}
+                    width={180}
+                    height={180}
+                    className={styles.uploadedImage}
+                    preview={false}
+                  />
+                  <Select
+                    className={styles.uploadedSelect}
+                    placeholder="Выберите категорию"
+                    value={imageCategories[file.uid]}
+                    onChange={(value) => handleCategoryChange(file.uid, value)}
+                    options={[
+                      { value: 'Кадровый аудит' },
+                      { value: 'Уведомление сотрудника' },
+                      { value: 'Подтверждение должности сотрудника' },
+                    ]}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+          <Form.Item wrapperCol={{ offset: 0, span: 24 }}>
+            <Space>
+              <Button type="primary" onClick={handleGenerate}>
+                Сформировать текст
+              </Button>
+            </Space>
+          </Form.Item>
+        </Form>
+        {generatedText && (
+          <div>
+            <Typography.Title level={4}>Сформированный текст:</Typography.Title>
+            <Input.TextArea
+              value={generatedText}
+              autoSize={{ minRows: 8 }}
+              className={styles.generatedTextArea}
+            />
+            <Button
+              type="primary"
+              onClick={() => {
+                navigator.clipboard.writeText(generatedText);
+                message.info('Текст скопирован');
+              }}
+              className={styles.copyButton}
+            >
+              Скопировать
+            </Button>
+          </div>
+        )}
+      </Col>
+    </Row>
   );
 }

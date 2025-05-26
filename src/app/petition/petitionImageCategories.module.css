@@ -1,0 +1,32 @@
+.categoryContainer {
+  margin-top: 24px;
+  padding: 16px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+}
+
+.categoryDescriptionBlock {
+  margin-top: 12px;
+}
+
+.categorySelect {
+  width: 100%;
+  margin-top: 8px;
+}
+
+.imagesBlock {
+  margin-top: 16px;
+  width: 100%;
+}
+
+.imageRow {
+  margin-top: 8px;
+}
+
+.categoryImage {
+  border-radius: 8px;
+}
+
+.uploadBlock {
+  margin-top: 16px;
+} 

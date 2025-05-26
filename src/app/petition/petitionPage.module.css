@@ -1,0 +1,40 @@
+.centerRow {
+  max-width: 600px;
+  margin: 32px auto 0;
+}
+
+.title {
+  margin-bottom: 24px;
+}
+
+.uploadedFilesBlock {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+
+.uploadedFileItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 200px;
+}
+
+.uploadedImage {
+  object-fit: cover;
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+
+.uploadedSelect {
+  width: 100%;
+}
+
+.generatedTextArea {
+  margin-top: 8px;
+}
+
+.copyButton {
+  margin-top: 8px;
+} 
