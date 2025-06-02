@@ -162,7 +162,7 @@ export default function PetitionFormPage() {
                   bgcolor: 'transparent',
                 },
               },
-              inputLabel: { sx: { color: '#fff' } },
+              inputLabel: { sx: { color: '#fff', '&.Mui-focused': { color: '#fff' } } },
             }}
           />
         </FormControl>

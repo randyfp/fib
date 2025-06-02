@@ -24,7 +24,7 @@ export function ImageUpload({ onUpload }: { onUpload: (url: string) => void }) {
 
       const result = await res.json();
       if (result.link) {
-        onUpload('result.link');
+        onUpload(result.link);
       } else {
         setSnackbar({ open: true, message: 'Ошибка загрузки изображения' });
       }
