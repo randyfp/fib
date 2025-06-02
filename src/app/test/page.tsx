@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Box, Typography } from '@mui/material';
 import Image from 'next/image';
+import styles from './testPage.module.css';
 
 type ImgurImage = {
   id: string;
@@ -38,7 +39,7 @@ export default function TestUploadPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.data?.error || 'Ошибка загрузки');
       setResult(data.data);
-    }  catch (err) {
+    } catch (err) {
       setError(err instanceof Error ? err.message : 'Неизвестная ошибка');
     } finally {
       setLoading(false);
@@ -76,7 +77,7 @@ export default function TestUploadPage() {
               alt="Uploaded"
               width={500}
               height={300}
-              style={{ maxWidth: '100%', height: 'auto' }}
+              className={styles.uploadedImage}
               unoptimized // обязательно, т.к. Imgur — внешний источник
             />
           </Box>

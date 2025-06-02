@@ -1,241 +1,407 @@
 'use client';
 
-import { Controller, useForm } from 'react-hook-form';
-import { Box, Button, TextField, Typography } from '@mui/material';
-import { useSnackbar } from 'notistack';
-import { useEffect, useState } from 'react';
-import Image from 'next/image';
+import React, { useEffect, useState } from 'react';
+import {
+  Box,
+  Button,
+  FormControl,
+  InputLabel,
+  MenuItem,
+  Select,
+  Snackbar,
+  Stack,
+  TextField,
+  Typography,
+} from '@mui/material';
+import IconButton from '@mui/material/IconButton';
+import DeleteIcon from '@mui/icons-material/Delete';
 import { ImageUpload } from '@/components/ImageUpload';
 
-type FormData = {
-  petitionNumber: string;
-  firstName: string;
-  lastName: string;
-  position: string;
-  employeeFirstName: string;
-  employeeLastName: string;
-  leaderFullName: string;
-};
+interface FormData {
+  petitionNumber: number;
+  jobTitle: string;
+  employeeName: string;
+  leaderName: string;
+}
+
+interface UploadedFile {
+  file: File;
+  url: string;
+  uid: string;
+}
 
 export default function PetitionFormPage() {
-  const {
-    register,
-    handleSubmit,
-    setValue,
-    control,
-    reset,
-    formState: { errors },
-  } = useForm<FormData>({ mode: 'onBlur' });
-
-  const { enqueueSnackbar } = useSnackbar();
-  const [imageUrls, setImageUrls] = useState<(string | null)[]>([null, null, null]);
-  const [imageError, setImageError] = useState(false);
-  const [generatedText, setGeneratedText] = useState('');
-
-
-  const handleImageUpload = (index: number, url: string) => {
-    const newUrls = [...imageUrls];
-    newUrls[index] = url;
-    setImageUrls(newUrls);
-  };
-
-  const generatePetitionText = (data: FormData, imageUrls?: string[]) => {
-    const {
-      petitionNumber,
-      firstName,
-      lastName,
-      position,
-      employeeFirstName,
-      employeeLastName,
-      leaderFullName,
-    } = data;
-
-    const imageSection =
-      imageUrls && imageUrls.filter(Boolean).length > 0
-        ? `\n\nПриложенные изображения:\n${imageUrls.map((url) => `• ${url}`).join('\n')}`
-        : '';
-
-    return `Ходатайство №${petitionNumber}
-
-Я, ${lastName} ${firstName}, занимающий(ая) должность ${position}, настоящим ходатайствую о предоставлении привилегий (или поощрения) сотруднику ${employeeLastName} ${employeeFirstName} за отличные показатели в работе и вклад в развитие компании.${imageSection}
-
-Дата: _____________
-Подпись: _____________`;
-  };
-
-  const onSubmit = async (data: FormData) => {
-    if (imageUrls.some((url) => !url)) {
-      setImageError(true);
-      return;
-    } else {
-      setImageError(false);
-    }
-
-    const formData = new FormData();
-    Object.entries(data).forEach(([key, value]) => {
-      formData.append(key, value as string);
-    });
-    imageUrls.forEach((url, i) => {
-      if (url) {
-        formData.append(`imageUrl${i}`, url);
-      }
-    });
-
-    try {
-      const res = await fetch('/api/petition', {
-        method: 'POST',
-        body: formData,
-      });
-
-      const result = await res.json();
-      if (result.success) {
-        enqueueSnackbar('Форма успешно отправлена!', { variant: 'success' });
-
-        const imageUrls: string[] = result.data.imageUrls;
-        const text = generatePetitionText(data, imageUrls);
-        setGeneratedText(text);
-
-        reset();
-        setImageUrls([null, null, null]);
-      } else {
-        enqueueSnackbar('Ошибка при отправке формы', { variant: 'error' });
-      }
-    } catch (error) {
-      console.error(error);
-      enqueueSnackbar('Ошибка подключения к серверу', { variant: 'error' });
-    }
-  };
-
-  const handleGenerate = handleSubmit((data) => {
-    localStorage.setItem('petition_firstName', data.firstName);
-    localStorage.setItem('petition_lastName', data.lastName);
-    setGeneratedText(generatePetitionText(data, imageUrls as string[]));
+  const [formData, setFormData] = useState<FormData>({
+    petitionNumber: 0,
+    jobTitle: '',
+    employeeName: '',
+    leaderName: '',
   });
+  const [generatedText, setGeneratedText] = useState('');
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
+  const [imageCategories, setImageCategories] = useState<Record<string, string>>({});
+  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string }>({ open: false, message: '' });
+
+  useEffect(() => {
+    setFormData((prev) => ({
+      ...prev,
+      leaderName: localStorage.getItem('petition_leaderName') || '',
+      jobTitle: localStorage.getItem('petition_jobTitle') || '',
+    }));
+  }, []);
+
+  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+    setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+  }
+
+  function generatePetitionText(data: FormData, uploadedFiles: UploadedFile[], imageCategories: Record<string, string>) {
+    const { petitionNumber, jobTitle, employeeName, leaderName } = data;
+    const today = new Date().toLocaleDateString('ru-RU');
+    // Группируем изображения по категориям
+    const categoryMap: Record<string, string[]> = {};
+    uploadedFiles.forEach((file) => {
+      const cat = imageCategories[file.uid];
+      if (!cat) return;
+      if (!categoryMap[cat]) categoryMap[cat] = [];
+      categoryMap[cat].push(file.file.name);
+    });
+    const imagesSection = Object.entries(categoryMap)
+      .map(
+        ([cat, files]) =>
+          files.length > 0
+            ? `${cat} ${employeeName}\n` + files.map((name) => `• /image/${name}`).join('\n')
+            : ''
+      )
+      .filter(Boolean)
+      .join('\n');
+    return `[RIGHT]В Окружной/Верховный суд Штата Сан-Андреас\nОт гражданина США ${leaderName}[/RIGHT]\n\n\n[CENTER]Ходатайство № ${petitionNumber} [/CENTER]\n\nЯ, ${leaderName}, занимающий должность ${jobTitle} направляю суду и сторонам следующие материалы:\n\n${imagesSection || '-'}\n\n[RIGHT]\nДата:${today}\nПодпись: ________[/RIGHT]`;
+  }
+
+  function handleGenerate() {
+    localStorage.setItem('petition_leaderName', formData.leaderName);
+    localStorage.setItem('petition_jobTitle', formData.jobTitle);
+    const text = generatePetitionText(formData, uploadedFiles, imageCategories);
+    setGeneratedText(text);
+    navigator.clipboard.writeText(text);
+    setSnackbar({ open: true, message: 'Текст скопирован' });
+  }
+
+  function handleCategoryChange(uid: string, value: string) {
+    setImageCategories((prev) => ({ ...prev, [uid]: value }));
+  }
+
+  function handleCopy() {
+    navigator.clipboard.writeText(generatedText);
+    setSnackbar({ open: true, message: 'Текст скопирован' });
+  }
+
+  function handleRemoveFile(uid: string) {
+    setUploadedFiles((prev) => prev.filter((f) => f.uid !== uid));
+    setImageCategories((prev) => {
+      const copy = { ...prev };
+      delete copy[uid];
+      return copy;
+    });
+  }
 
   return (
-    <Box maxWidth="600px" mx="auto" mt={4}>
-      <Typography variant="h4" gutterBottom>
-        Форма ходатайства
+    <Box
+      sx={{
+        color: '#fff',
+        p: 4,
+        borderRadius: 2,
+        maxWidth: 1200,
+        mx: 'auto',
+      }}
+    >
+      <Typography variant="h4" mb={4} sx={{ color: '#fff' }}>
+        Сформировать ходатайство
       </Typography>
-
-      <form >
-        <Controller
-          name="leaderFullName"
-          control={control}
-          rules={{ required: 'Обязательно' }}
-          render={({ field }) => (
-            <TextField
-              {...field}
-              fullWidth
-              placeholder="Aidew moor"
-              error={!!errors.leaderFullName}
-              helperText={errors.leaderFullName?.message}
-              margin="normal"
-            />
-          )}
-       />
-
-        <TextField
-          fullWidth
-          label="Имя заявителя"
-          {...register('firstName', { required: 'Обязательно' })}
-          error={!!errors.firstName}
-          defaultValue={typeof window !== 'undefined' ? localStorage.getItem('petition_firstName') ?? '' : ''}
-          helperText={errors.firstName?.message}
-          margin="normal"
+      <Stack spacing={3} component="form">
+        <FormControl fullWidth>
+          <TextField
+            label="Имя и фамилия руководства"
+            variant="outlined"
+            name="leaderName"
+            value={formData.leaderName}
+            onChange={handleChange}
+            placeholder="Aidew moor"
+            fullWidth
+            slotProps={{
+              root: { sx: { color: '#fff' } },
+              input: {
+                sx: {
+                  color: '#fff',
+                  '& .MuiOutlinedInput-notchedOutline': { borderColor: '#444' },
+                  '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#666' },
+                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#888' },
+                  bgcolor: 'transparent',
+                },
+              },
+              inputLabel: { sx: { color: '#fff' } },
+            }}
+          />
+        </FormControl>
+        <FormControl fullWidth>
+          <TextField
+            label="Должность"
+            variant="outlined"
+            name="jobTitle"
+            value={formData.jobTitle}
+            onChange={handleChange}
+            placeholder="Заместитель главы отдела FNA"
+            fullWidth
+            slotProps={{
+              root: { sx: { color: '#fff' } },
+              input: {
+                sx: {
+                  color: '#fff',
+                  '& .MuiOutlinedInput-notchedOutline': { borderColor: '#444' },
+                  '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#666' },
+                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#888' },
+                  bgcolor: 'transparent',
+                },
+              },
+              inputLabel: { sx: { color: '#fff' } },
+            }}
+          />
+        </FormControl>
+        <FormControl fullWidth>
+          <TextField
+            label="Номер ходатайства"
+            variant="outlined"
+            name="petitionNumber"
+            type="number"
+            value={formData.petitionNumber}
+            onChange={handleChange}
+            fullWidth
+            slotProps={{
+              root: { sx: { color: '#fff' } },
+              input: {
+                sx: {
+                  color: '#fff',
+                  '& .MuiOutlinedInput-notchedOutline': { borderColor: '#444' },
+                  '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#666' },
+                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#888' },
+                  bgcolor: 'transparent',
+                },
+              },
+              inputLabel: { sx: { color: '#fff' } },
+            }}
+          />
+        </FormControl>
+        <FormControl fullWidth>
+          <TextField
+            label="Имя Фамилия сотрудника"
+            variant="outlined"
+            name="employeeName"
+            value={formData.employeeName}
+            onChange={handleChange}
+            placeholder="Randy Walkers"
+            fullWidth
+            slotProps={{
+              root: { sx: { color: '#fff' } },
+              input: {
+                sx: {
+                  color: '#fff',
+                  '& .MuiOutlinedInput-notchedOutline': { borderColor: '#444' },
+                  '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#666' },
+                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#888' },
+                  bgcolor: 'transparent',
+                },
+              },
+              inputLabel: {
+                sx: {
+                  color: '#fff',
+                  '&.Mui-focused': { color: '#fff' },
+                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#fff' },
+                  '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#fff' },
+                },
+              },
+            }}
+          />
+        </FormControl>
+        <ImageUpload
+          onUpload={(url) => {
+            setUploadedFiles((prev) => [
+              ...prev,
+              {
+                file: { name: url, size: 0, type: '', lastModified: Date.now() } as File,
+                url,
+                uid: Math.random().toString(36).slice(2),
+              },
+            ]);
+          }}
         />
-        <TextField
-          fullWidth
-          label="Фамилия заявителя"
-          {...register('lastName', { required: 'Обязательно' })}
-          error={!!errors.lastName}
-          helperText={errors.lastName?.message}
-          margin="normal"
-        />
-        <TextField
-          fullWidth
-          label="Должность заявителя"
-          {...register('position', { required: 'Обязательно' })}
-          error={!!errors.position}
-          helperText={errors.position?.message}
-          margin="normal"
-        />
-        <TextField
-          fullWidth
-          label="Имя сотрудника"
-          {...register('employeeFirstName', { required: 'Обязательно' })}
-          error={!!errors.employeeFirstName}
-          helperText={errors.employeeFirstName?.message}
-          margin="normal"
-        />
-        <TextField
-          fullWidth
-          label="Фамилия сотрудника"
-          {...register('employeeLastName', { required: 'Обязательно' })}
-          error={!!errors.employeeLastName}
-          helperText={errors.employeeLastName?.message}
-          margin="normal"
-        />
-
-        <Box mt={2}>
-          <Typography>Загрузите 3 изображения (с Imgur):</Typography>
-          {[0, 1, 2].map((i) => (
-            <Box key={i} mt={2}>
-              <ImageUpload onUpload={(url) => handleImageUpload(i, url)} />
-              {imageUrls[i] && (
-                <Box mt={1}>
-                  <Image
-                    src={imageUrls[i]!}
-                    alt={`Превью ${i + 1}`}
-                    style={{ width: '100%', maxWidth: '300px', borderRadius: 8 }}
-                    unoptimized
-                    width={500}
-                    height={300}
-                  />
-                </Box>
-              )}
-            </Box>
-          ))}
-          {imageError && (
-            <Typography color="error" variant="body2" mt={1}>
-              Загрузите все 3 изображения
-            </Typography>
-          )}
-        </Box>
-
-        <Box mt={3}>
-          <Button type="submit" variant="contained" color="primary">
-            Отправить
-          </Button>
-          <Button variant="outlined" sx={{ ml: 2 }} onClick={handleGenerate}>
+        {uploadedFiles.length > 0 && (
+          <Box
+            sx={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              mt: 2,
+              width: '100%',
+            }}
+          >
+            {uploadedFiles.map((file) => (
+              <Box
+                key={file.uid}
+                sx={{
+                  position: 'relative',
+                  width: { xs: '50%', sm: '25%' },
+                  height: 'content',
+                  p: 2,
+                  borderRadius: 2,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  '&:hover .delete-btn': {
+                    opacity: 1,
+                    pointerEvents: 'auto',
+                  },
+                }}
+              >
+                <Box
+                  component="img"
+                  src={file.url}
+                  alt={file.file.name}
+                  sx={{
+                    bgcolor: '#222',
+                    aspectRatio: '1',
+                    maxWidth: '100%',
+                    maxHeight: 'calc(100% - 72px)',
+                    objectFit: 'contain',
+                    borderRadius: 2,
+                    border: '1px solid #444',
+                    margin: 'auto',
+                  }}
+                />
+                <IconButton
+                  className="delete-btn"
+                  size="small"
+                  onClick={() => handleRemoveFile(file.uid)}
+                  sx={{
+                    position: 'absolute',
+                    top: 8,
+                    right: 8,
+                    bgcolor: '#222',
+                    color: '#ff4d4f',
+                    zIndex: 2,
+                    opacity: 0,
+                    pointerEvents: 'none',
+                    transition: 'opacity 0.2s',
+                    '&:hover': { bgcolor: '#333', color: '#fff' },
+                  }}
+                >
+                  <DeleteIcon fontSize="small" />
+                </IconButton>
+                <FormControl fullWidth sx={{ mb: 1, mt: 2 }}>
+                  <InputLabel sx={{ color: '#fff', '&.Mui-focused': { color: '#fff' } }}>Категория</InputLabel>
+                  <Select
+                    value={imageCategories[file.uid] || ''}
+                    label="Категория"
+                    onChange={(e) => handleCategoryChange(file.uid, e.target.value)}
+                    sx={{
+                      width: '100%',
+                      color: '#fff',
+                      bgcolor: 'transparent',
+                      '& .MuiOutlinedInput-notchedOutline': { borderColor: '#444' },
+                      '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#666' },
+                      '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#888' },
+                    }}
+                    slotProps={{
+                      root: { sx: { color: '#fff', width: '100%' } },
+                      input: {
+                        sx: { color: '#fff', width: '100%' },
+                      },
+                    }}
+                  >
+                    <MenuItem value="Кадровый аудит">Кадровый аудит</MenuItem>
+                    <MenuItem value="Уведомление сотрудника">Уведомление сотрудника</MenuItem>
+                    <MenuItem value="Подтверждение должности сотрудника">Подтверждение должности сотрудника</MenuItem>
+                  </Select>
+                </FormControl>
+              </Box>
+            ))}
+          </Box>
+        )}
+        <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
+          <Button
+            variant="contained"
+            sx={{
+              bgcolor: '#1677ff',
+              color: '#fff',
+              '&:hover': { bgcolor: '#4096ff' },
+              textTransform: 'none',
+              fontWeight: 500,
+              borderRadius: 1.5,
+              px: 3,
+            }}
+            onClick={handleGenerate}
+          >
             Сформировать текст
           </Button>
+          <Button
+            variant="outlined"
+            sx={{
+              color: '#fff',
+              borderColor: '#444',
+              bgcolor: 'transparent',
+              '&:hover': { borderColor: '#1677ff', bgcolor: '#222' },
+              textTransform: 'none',
+              fontWeight: 500,
+              borderRadius: 1.5,
+              px: 3,
+            }}
+            onClick={() => {
+              setFormData({ petitionNumber: 0, jobTitle: '', employeeName: '', leaderName: '' });
+              setUploadedFiles([]);
+              setImageCategories({});
+              setGeneratedText('');
+            }}
+          >
+            Сбросить
+          </Button>
         </Box>
-      </form>
-
+      </Stack>
       {generatedText && (
-        <Box mt={3}>
-          <Typography variant="h6">Сформированный текст:</Typography>
+        <Box mt={4}>
+          <Typography variant="h6" sx={{ color: '#fff' }}>Сформированный текст:</Typography>
           <TextField
-            fullWidth
-            multiline
             value={generatedText}
+            multiline
             minRows={8}
-            sx={{ mt: 1 }}
-            InputProps={{ readOnly: true }}
+            fullWidth
+            sx={{
+              mt: 2,
+              color: '#fff',
+              '& .MuiOutlinedInput-notchedOutline': { borderColor: '#444' },
+              '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#1677ff' },
+              '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#1677ff' },
+              bgcolor: 'transparent',
+            }}
+            slotProps={{
+              input:{
+                sx:{ color: '#fff' }
+              },
+            }}
           />
           <Button
             variant="contained"
-            onClick={() => {
-              navigator.clipboard.writeText(generatedText);
-              enqueueSnackbar('Текст скопирован', { variant: 'info' });
-            }}
-            sx={{ mt: 1 }}
+            color="primary"
+            onClick={handleCopy}
+            sx={{ mt: 2, bgcolor: '#1677ff', color: '#fff', '&:hover': { bgcolor: '#4096ff' } }}
           >
             Скопировать
           </Button>
         </Box>
       )}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={2000}
+        onClose={() => setSnackbar({ open: false, message: '' })}
+        message={snackbar.message}
+      />
     </Box>
   );
 }
