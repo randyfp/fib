@@ -172,7 +172,7 @@ export default function RouletteTrackerPage() {
           }}
           onClick={() => {
             setHistory((prev) => [...prev, num]);
-            setActiveLabel(num);
+            setActiveLabel(String(num));
           }}
         >
           <Box sx={{ width: 18, height: 18, borderRadius: '50%', background: ballColor, mb: 0.5, border: '1.5px solid #fff', display: 'inline-block' }} />
